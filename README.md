@@ -10,7 +10,10 @@ The recommended method of installing dependencies is `poetry`. If you have the `
 $ poetry install
 ```
 
-This will read the `pyproject.toml` file and install the dependencies.
+This will read the `pyproject.toml` file and install the dependencies. If you're not using `poetry`, then you can install the depedencies using `pip` or `conda`, though the versions installed are not guaranteed to be compatible.
+```
+$ python -m pip install --user numpy pyserial pyvisa
+```
 
 ## Running the program
 Run the program as a Python module:
