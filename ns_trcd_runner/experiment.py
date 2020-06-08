@@ -71,6 +71,7 @@ def measure(scope, shutter, delta, outdir, n) -> None:
             preamble, delta, with_pump_dig_levels, no_pump_dig_levels)
         count += 1
         save_measurement(measurement, outdir, count)
+        print(f"Completed {count}/{n}")
         if count > n:
             return
 
