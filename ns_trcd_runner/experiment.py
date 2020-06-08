@@ -49,6 +49,7 @@ def measure(scope, shutter, delta, outdir, n) -> None:
     shutter.reset_input_buffer()
     count = 0
     while True:
+        scope.acquisition_start()
         wait_until_triggered(scope)
         has_pump = read_pump_state(shutter)
         if has_pump is None:
@@ -57,6 +58,7 @@ def measure(scope, shutter, delta, outdir, n) -> None:
         if not has_pump:
             continue
         with_pump_dig_levels = acquire_signals(scope)
+        scope.acquisition_start()
         wait_until_triggered(scope)
         has_pump = read_pump_state(shutter)
         if has_pump is None:
@@ -134,7 +136,7 @@ def wait_until_triggered(scope) -> None:
     """Block until the oscilloscope has been triggered.
     """
     while True:
-        if scope.get_trigger_state() == "ready":
+        if scope.get_trigger_state() == "save":
             break
     return
 
@@ -143,7 +145,7 @@ def initialize_scope_settings(scope) -> None:
     """Make sure the oscilloscope settings are set for experiment conditions.
     """
     scope.set_hi_res_mode()
-    scope.set_continuous_acquisition_mode()
+    scope.set_single_acquisition_mode()
     scope.set_waveform_data_source_single_channel(1)
     scope.set_waveform_encoding_ascii()
     scope.set_waveform_start_point(1)
