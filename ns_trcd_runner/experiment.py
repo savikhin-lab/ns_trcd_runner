@@ -22,7 +22,6 @@ class Preamble:
 class DigitizerLevels:
     """Raw digitizer levels from a single acquisition.
     """
-
     par: np.ndarray
     perp: np.ndarray
     ref: np.ndarray
@@ -30,14 +29,11 @@ class DigitizerLevels:
 
 @dataclass
 class Measurement:
-    """Reconstructed signals for an entire measurement.
+    """Reconstructed signals for a measurement taken with only a 'with pump' shot.
     """
-    par_wp: np.ndarray
-    par_np: np.ndarray
-    perp_wp: np.ndarray
-    perp_np: np.ndarray
-    ref_wp: np.ndarray
-    ref_np: np.ndarray
+    par: np.ndarray
+    perp: np.ndarray
+    ref: np.ndarray
     da: np.ndarray
     cd: np.ndarray
 
@@ -46,65 +42,44 @@ def measure(scope, shutter, delta, outdir, n) -> None:
     initialize_scope_settings(scope)
     scope.acquisition_start()
     preamble = get_scope_preamble(scope)
-    shutter.reset_input_buffer()
     count = 0
     while True:
         scope.acquisition_start()
         wait_until_triggered(scope)
-        has_pump = read_pump_state(shutter)
-        if has_pump is None:
-            print("Invalid message read from shutter.")
-            return
-        if not has_pump:
-            continue
-        with_pump_dig_levels = acquire_signals(scope)
-        scope.acquisition_start()
-        wait_until_triggered(scope)
-        has_pump = read_pump_state(shutter)
-        if has_pump is None:
-            print("Invalid message read from shutter.")
-            return
-        if has_pump:
-            continue
-        no_pump_dig_levels = acquire_signals(scope)
-        measurement = compute_da(
-            preamble, delta, with_pump_dig_levels, no_pump_dig_levels)
+        digitizer_levels = acquire_signals(scope)
+        meas = compute_da(preamble, delta, digitizer_levels)
         count += 1
-        save_measurement(measurement, outdir, count)
+        save_measurement(meas, outdir, count)
         print(f"Completed {count}/{n}")
-        if count > n:
+        if count == n:
             return
 
 
 def save_measurement(meas, root, count):
-    """Save the measurement as separate *.npy files.
+    """Save a measurement taken from a single 'with pump' shot.
     """
     out = root / str(count)
     out.mkdir()
-    np.save(out / "with_pump_par.npy", meas.par_wp)
-    np.save(out / "without_pump_par.npy", meas.par_np)
-    np.save(out / "with_pump_perp.npy", meas.perp_wp)
-    np.save(out / "without_pump_perp.npy", meas.perp_np)
-    np.save(out / "with_pump_ref.npy", meas.ref_wp)
-    np.save(out / "without_pump_ref.npy", meas.ref_np)
-    np.save(out / "da_par.npy", meas.da)
-    np.save(out / "da_cd.npy", meas.cd)
+    np.save(out / "par.npy", meas.par)
+    np.save(out / "perp.npy", meas.perp)
+    np.save(out / "ref.npy", meas.ref)
+    np.save(out / "da.npy", meas.da)
+    np.save(out / "cd.npy", meas.cd)
     return
 
 
-def compute_da(pre, delta, with_p, without_p) -> Measurement:
-    """Reconstruct signals to compute dA and dAcd.
-    """
-    par_wp = pre.v_scale_par * with_p.par + pre.v_offset_par
-    par_np = pre.v_scale_par * without_p.par + pre.v_offset_par
-    perp_wp = pre.v_scale_perp * with_p.perp + pre.v_offset_perp
-    perp_np = pre.v_scale_par * without_p.perp + pre.v_offset_perp
-    ref_wp = pre.v_scale_ref * with_p.ref + pre.v_offset_ref
-    ref_np = pre.v_scale_ref * without_p.ref + pre.v_offset_ref
-    da = -np.log10((par_wp / ref_wp) / (par_np / ref_np))
-    cd = (4 / (2.3 * delta)) * (perp_wp / par_wp - perp_np / par_np)
-    meas = Measurement(par_wp, par_np, perp_wp,
-                       perp_np, ref_wp, ref_np, da, cd)
+def compute_da(pre, delta, channels) -> Measurement:
+    par = pre.v_scale_par * channels.par + pre.v_offset_par
+    perp = pre.v_scale_perp * channels.perp + pre.v_offset_perp
+    ref = pre.v_scale_ref * channels.ref + pre.v_offset_ref
+    divided_par = par / ref
+    num_points = len(divided_par)
+    da_without_pump = np.mean(divided_par[:int(np.floor(0.09*num_points))])
+    da = -np.log10(divided_par / da_without_pump)
+    divided_perp = perp / par
+    cd_without_pump = np.mean(divided_perp[:int(np.floor(0.09*num_points))])
+    cd = (4 / (2.3 * delta)) * (divided_perp - cd_without_pump)
+    meas = Measurement(par, perp, ref, da, cd)
     return meas
 
 
@@ -118,19 +93,6 @@ def acquire_signals(scope) -> DigitizerLevels:
     scope.set_waveform_data_source_single_channel(3)
     ref = scope.get_curve()
     return DigitizerLevels(par, perp, ref)
-
-
-def read_pump_state(shutter) -> Union[bool, None]:
-    """Determine if this measurement is with pump.
-
-    Returns None if an invalid message was read from the shutter.
-    """
-    state = shutter.read(4)
-    if state == b"open":
-        return True
-    if state == b"shut":
-        return False
-    return None
 
 
 def wait_until_triggered(scope) -> None:

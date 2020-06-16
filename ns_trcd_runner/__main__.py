@@ -10,10 +10,10 @@ from .oscilloscope import Oscilloscope
 def main(save_path, num_meas, instrument_name, shutter_port, delta):
     rm = pyvisa.ResourceManager()
     instr = rm.open_resource(instrument_name)
-    instr.timeout = 1_000  # ms
+    instr.timeout = 5_000  # ms
     scope = Oscilloscope(instr)
     shutter = Serial(shutter_port, baudrate=9_600, timeout=5)
-    measure(scope, shutter, delta, save_path, num_meas)
+    measure(scope, delta, save_path, num_meas)
     instr.close()
     shutter.close()
 
@@ -36,11 +36,11 @@ if __name__ == "__main__":
                         default="COM4", dest="shutter_port")
     parser.add_argument("--delta", "-d", type=float, default=0.038)
     args = parser.parse_args()
+    if not args.out_dir.exists():
+        args.out_dir.mkdir()
     if not args.out_dir.is_dir():
         print("Output path is not a directory.")
         sys.exit()
-    if not args.out_dir.exists():
-        args.out_dir.mkdir()
     if not dir_is_empty(args.out_dir):
         print("Directory is not empty.")
         sys.exit()
