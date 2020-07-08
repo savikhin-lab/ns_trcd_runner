@@ -1,14 +1,20 @@
+import os
 import struct
+import sys
 import numpy as np
 from enum import Enum
+from pathlib import Path
 from scipy.interpolate import interp1d
 from serial import Serial
 
 
-CAL_WL = [780, 785, 790, 795, 800, 805, 810, 815, 820, 825, 830, 835, 840, 845, 850]
-CAL_STEPS = [226996, 227897, 228712, 230259, 231322, 232303, 233216,
-             234255, 235493, 236728, 237581, 238474, 239750, 240587, 241487]
-interp_steps = interp1d(CAL_WL, CAL_STEPS, kind="cubic")
+cal_file_path = os.environ["ZABERCAL"]
+if cal_file_path is None:
+    print("ZABERCAL environment variable not found.")
+    sys.exit(-1)
+cal_file_path = Path(cal_file_path)
+cal_data = np.loadtxt(cal_file_path, delimiter=",")
+interp_steps = interp1d(cal_data[:, 0], cal_data[:, 1], kind="cubic")
 
 
 class StepperCmd(Enum):
