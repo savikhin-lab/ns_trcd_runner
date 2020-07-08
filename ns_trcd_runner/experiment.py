@@ -1,3 +1,5 @@
+import sys
+import click
 import numpy as np
 from dataclasses import dataclass
 from typing import Tuple, Union
@@ -55,16 +57,48 @@ def measure(scope, shutter, delta, outdir, n) -> None:
             return
 
 
-def save_measurement(meas, root, count):
+def measure_multiwl(scope, slit, delta, outdir, n, wls) -> None:
+    initialize_scope_settings(scope)
+    scope.acquisition_start()
+    preamble = get_scope_preamble(scope)
+    bar_length = (n+1) * len(wls)
+    with click.progressbar(length=bar_length, label="Measuring") as bar:
+        for shot in range(1, n+1):
+            shot_dir = outdir / f"{shot:04d}"
+            shot_dir.mkdir()
+            for w in wls:
+                wl_dir = shot_dir / str(w)
+                wl_dir.mkdir()
+            for w in wls:
+                slit.move_wl(w)
+                scope.acquisition_start()
+                wait_until_triggered(scope)
+                digitizer_levels = acquire_signals(scope)
+                wl_dir = shot_dir / str(w)
+                meas = compute_da(preamble, delta, digitizer_levels)
+                save_measurement(meas, wl_dir)
+                bar.update(1)
+    return
+
+
+def make_measurement_dirs(outdir, n, wls) -> None:
+    for shot in range(1, n+1):
+        shot_dir = outdir / str(shot)
+        shot_dir.mkdir()
+        for wavelength in wls:
+            wl_dir = shot_dir / str(wavelength)
+            wl_dir.mkdir()
+    return
+
+
+def save_measurement(meas, root) -> None:
     """Save a measurement taken from a single 'with pump' shot.
     """
-    out = root / str(count)
-    out.mkdir()
-    np.save(out / "par.npy", meas.par)
-    np.save(out / "perp.npy", meas.perp)
-    np.save(out / "ref.npy", meas.ref)
-    np.save(out / "da.npy", meas.da)
-    np.save(out / "cd.npy", meas.cd)
+    np.save(root / "par.npy", meas.par)
+    np.save(root / "perp.npy", meas.perp)
+    np.save(root / "ref.npy", meas.ref)
+    np.save(root / "da.npy", meas.da)
+    np.save(root / "cd.npy", meas.cd)
     return
 
 

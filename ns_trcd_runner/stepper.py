@@ -1,4 +1,5 @@
 import struct
+import numpy as np
 from enum import Enum
 from scipy.interpolate import interp1d
 from serial import Serial
@@ -36,7 +37,7 @@ class Stepper:
             curr_pos = self.pos()
 
     def move_wl(self, wl):
-        steps = interp_steps(wl)
+        steps = int(np.floor(interp_steps(wl)))
         self.move(steps)
 
     def pos(self):
