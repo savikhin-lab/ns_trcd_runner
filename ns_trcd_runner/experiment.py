@@ -67,14 +67,14 @@ def measure_multiwl(scope, slit, delta, outdir, n, wls) -> None:
             shot_dir = outdir / f"{shot:04d}"
             shot_dir.mkdir()
             for w in wls:
-                wl_dir = shot_dir / str(w)
+                wl_dir = shot_dir / f"{w:.2f}"
                 wl_dir.mkdir()
             for w in wls:
                 slit.move_wl(w)
                 scope.acquisition_start()
                 wait_until_triggered(scope)
                 digitizer_levels = acquire_signals(scope)
-                wl_dir = shot_dir / str(w)
+                wl_dir = shot_dir / f"{w:.2f}"
                 meas = compute_da(preamble, delta, digitizer_levels)
                 save_measurement(meas, wl_dir)
                 bar.update(1)
@@ -86,7 +86,7 @@ def make_measurement_dirs(outdir, n, wls) -> None:
         shot_dir = outdir / str(shot)
         shot_dir.mkdir()
         for wavelength in wls:
-            wl_dir = shot_dir / str(wavelength)
+            wl_dir = shot_dir / f"{wavelength:.2f}"
             wl_dir.mkdir()
     return
 

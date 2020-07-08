@@ -13,42 +13,54 @@ from .stepper import Stepper
 
 
 @click.command()
-@click.option("-o", "--output-dir", "outdir", type=click.Path(file_okay=False, dir_okay=True), help="The output directory in which the raw data will be stored.")
-@click.option("-n", "--num-measurements", "num_meas", type=click.INT, help="The number of measurements to collect at each wavelength.")
-@click.option("--wstart", type=click.INT, default=790, help="The first wavelength for data collection.")
-@click.option("--wstop", type=click.INT, default=840, help="The last wavelength for data collection.")
-@click.option("--wstep", type=click.INT, default=2, help="The step between wavelengths.")
+@click.option("-o", "--output-dir", "outdir", required=True, type=click.Path(file_okay=False, dir_okay=True), help="The output directory in which the raw data will be stored.")
+@click.option("-n", "--num-measurements", "num_meas", required=True, type=click.INT, help="The number of measurements to collect at each wavelength.")
+@click.option("--wstart", type=click.FLOAT, help="The first wavelength for data collection.")
+@click.option("--wstop", type=click.FLOAT, help="The last wavelength for data collection.")
+@click.option("--wstep", type=click.FLOAT, help="The step between wavelengths.")
+@click.option("-w", "wlist", type=click.FLOAT, multiple=True, help="A set of individual wavelengths to measure at. May be specified multiple times.")
 @click.option("-d", "--delta", type=click.FLOAT, default=0.038, help="The retardation of the stress plate.")
-def run(outdir, num_meas, wstart, wstop, wstep, delta):
+def run(outdir, num_meas, wstart, wstop, wstep, wlist, delta):
     """Do a TRCD experiment.
     """
-    if outdir is None:
-        print("An output directory is required.")
-        sys.exit(-1)
     outdir = Path(outdir)
     if not outdir.exists():
         outdir.mkdir()
     if len(os.listdir(outdir)) != 0:
         print("Output directory is not empty.")
         sys.exit(-1)
-    if num_meas is None:
-        print("A number of measurements is required.")
-        sys.exit(-1)
-    validate_wavelengths(wstart, wstop, wstep)
+    wl_list = make_wavelength_list(wstart, wstop, wstep, wlist)
     slit_port = get_slit_port()
     slit = Stepper(slit_port)
     scope_name = get_scope_name()
-    wls = [x for x in range(wstart, wstop+1, wstep)]
     rm = pyvisa.ResourceManager()
     instr = rm.open_resource(scope_name)
     instr.timeout = 5_000  # ms
     scope = Oscilloscope(instr)
-    measure_multiwl(scope, slit, delta, outdir, num_meas, wls)
+    measure_multiwl(scope, slit, delta, outdir, num_meas, wl_list)
     instr.close()
     return
 
 
-def validate_wavelengths(start, stop, step):
+def make_wavelength_list(start, stop, step, wl_list):
+    if all(map(lambda x: x is not None, [start, stop, step, wl_list])):
+        print("Cannot specify both a wavelength range and individual wavelengths.")
+        sys.exit(-1)
+    if all(map(lambda x: x is None, [start, stop, step, wl_list])):
+        print("No wavelengths specified.")
+        sys.exit(-1)
+    if wl_list is not None:
+        if len(wl_list) == 0:
+            print("List of wavelengths is empty.")
+            sys.exit(-1)
+        return wl_list
+    else:
+        validate_wavelength_range(start, stop, step)
+        wls = [x for x in np.arange(start, stop+1, step)]
+        return wls
+
+
+def validate_wavelength_range(start, stop, step):
     if start is None:
         print("An initial wavelength is required.")
         sys.exit(-1)
