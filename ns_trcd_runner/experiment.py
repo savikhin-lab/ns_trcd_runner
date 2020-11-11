@@ -57,7 +57,9 @@ def measure(scope, shutter, delta, outdir, n) -> None:
             return
 
 
-def measure_multiwl(scope, slit, delta, outdir, n, wls) -> None:
+def measure_multiwl(scope, etalon, delta, outdir, n, wls) -> None:
+    """Measure at multiple wavelengths.
+    """
     initialize_scope_settings(scope)
     scope.acquisition_start()
     preamble = get_scope_preamble(scope)
@@ -70,7 +72,7 @@ def measure_multiwl(scope, slit, delta, outdir, n, wls) -> None:
                 wl_dir = shot_dir / f"{w:.2f}"
                 wl_dir.mkdir()
             for w in wls:
-                slit.move_wl(w)
+                etalon.move_wl(w)
                 scope.acquisition_start()
                 wait_until_triggered(scope)
                 digitizer_levels = acquire_signals(scope)

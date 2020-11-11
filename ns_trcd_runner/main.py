@@ -9,7 +9,7 @@ from typing import List
 from serial import Serial
 from .experiment import measure_multiwl
 from .oscilloscope import Oscilloscope
-from .stepper import Stepper
+from .actuator import Actuator
 
 
 @click.command()
@@ -30,29 +30,25 @@ def run(outdir, num_meas, wstart, wstop, wstep, wlist, delta):
         print("Output directory is not empty.")
         sys.exit(-1)
     wl_list = make_wavelength_list(wstart, wstop, wstep, wlist)
-    slit_port = get_slit_port()
-    slit = Stepper(slit_port)
+    act = Actuator()
     scope_name = get_scope_name()
     rm = pyvisa.ResourceManager()
     instr = rm.open_resource(scope_name)
     instr.timeout = 5_000  # ms
     scope = Oscilloscope(instr)
-    measure_multiwl(scope, slit, delta, outdir, num_meas, wl_list)
+    measure_multiwl(scope, act, delta, outdir, num_meas, wl_list)
     instr.close()
     return
 
 
 def make_wavelength_list(start, stop, step, wl_list):
-    if all(map(lambda x: x is not None, [start, stop, step, wl_list])):
+    if all(map(lambda x: x is not None, [start, stop, step])) and len(wl_list) != 0:
         print("Cannot specify both a wavelength range and individual wavelengths.")
         sys.exit(-1)
-    if all(map(lambda x: x is None, [start, stop, step, wl_list])):
+    if all(map(lambda x: x is None, [start, stop, step])) and len(wl_list) == 0:
         print("No wavelengths specified.")
         sys.exit(-1)
-    if wl_list is not None:
-        if len(wl_list) == 0:
-            print("List of wavelengths is empty.")
-            sys.exit(-1)
+    if len(wl_list) != 0:
         return wl_list
     else:
         validate_wavelength_range(start, stop, step)
@@ -93,15 +89,10 @@ def get_scope_name() -> str:
         return instr_name
 
 
-def get_slit_port() -> str:
-    """Looks for the Zaber stepper port in the ZABERPORT environment variable.
-    """
-    portname = os.getenv("ZABERPORT")
-    if portname is None:
-        print("Zaber port name not found. Please set the ZABERPORT environment variable.")
-        sys.exit(-1)
-    else:
-        return portname
+def dir_is_empty(path):
+    for _ in path.iterdir():
+        return False
+    return True
 
 
 def main(save_path, num_meas, instrument_name, shutter_port, delta):
@@ -113,9 +104,3 @@ def main(save_path, num_meas, instrument_name, shutter_port, delta):
     measure(scope, delta, save_path, num_meas)
     instr.close()
     shutter.close()
-
-
-def dir_is_empty(path):
-    for _ in path.iterdir():
-        return False
-    return True
