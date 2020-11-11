@@ -3,6 +3,7 @@ import sys
 import time
 import numpy as np
 from ctypes import c_short, c_int, c_char_p
+from pathlib import Path
 from scipy.interpolate import interp1d
 from . import actuator_low_level as actuator
 
@@ -18,7 +19,7 @@ class Actuator:
             sys.exit(-1)
         cal_file_path = Path(cal_file_path)
         cal_data = np.loadtxt(cal_file_path, delimiter=",")
-        self._wl_interp = interp1d(cal_data[:, 1], cal_data[:, 0], kind="linear")
+        self._wl_interp = interp1d(cal_data[:, 0], cal_data[:, 1], kind="linear")
         res = actuator.TLI_BuildDeviceList()
         if res != 0:
             sys.exit(f"Actuator failed to build device list. Error: {res}")
@@ -84,10 +85,12 @@ class Actuator:
         """Move to a specific wavelength.
         """
         actuator.CC_ClearMessageQueue(self._serial)
-        pos = self._wl_interp(wl)
+        pos = int(np.floor(self._wl_interp(wl)))
         res = actuator.CC_SetMoveAbsolutePosition(self._serial, pos)
         if res != 0:
             sys.exit(f"Failed to set move position. Error: {res}")
         actuator.CC_MoveAbsolute(self._serial)
-        while actuator.CC_GetPosition(self._serial) != pos:
-            time.sleep(0.01)
+        curr_pos = actuator.CC_GetPosition(self._serial)
+        while curr_pos != pos:
+            time.sleep(0.05)
+            curr_pos = actuator.CC_GetPosition(self._serial)
