@@ -19,8 +19,7 @@ from .actuator import Actuator
 @click.option("--wstop", type=click.FLOAT, help="The last wavelength for data collection.")
 @click.option("--wstep", type=click.FLOAT, help="The step between wavelengths.")
 @click.option("-w", "wlist", type=click.FLOAT, multiple=True, help="A set of individual wavelengths to measure at. May be specified multiple times.")
-@click.option("-d", "--delta", type=click.FLOAT, default=0.038, help="The retardation of the stress plate.")
-def run(outdir, num_meas, wstart, wstop, wstep, wlist, delta):
+def run(outdir, num_meas, wstart, wstop, wstep, wlist):
     """Do a TRCD experiment.
     """
     outdir = Path(outdir)

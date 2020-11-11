@@ -36,11 +36,9 @@ class Measurement:
     par: np.ndarray
     perp: np.ndarray
     ref: np.ndarray
-    da: np.ndarray
-    cd: np.ndarray
 
 
-def measure(scope, shutter, delta, outdir, n) -> None:
+def measure(scope, shutter, outdir, n) -> None:
     initialize_scope_settings(scope)
     scope.acquisition_start()
     preamble = get_scope_preamble(scope)
@@ -49,15 +47,15 @@ def measure(scope, shutter, delta, outdir, n) -> None:
         scope.acquisition_start()
         wait_until_triggered(scope)
         digitizer_levels = acquire_signals(scope)
-        meas = compute_da(preamble, delta, digitizer_levels)
+        meas = compute_signals(preamble, digitizer_levels)
         count += 1
-        save_measurement(meas, outdir, count)
+        save_measurement(meas, outdir)
         print(f"Completed {count}/{n}")
         if count == n:
             return
 
 
-def measure_multiwl(scope, etalon, delta, outdir, n, wls) -> None:
+def measure_multiwl(scope, etalon, outdir, n, wls) -> None:
     """Measure at multiple wavelengths.
     """
     initialize_scope_settings(scope)
@@ -69,15 +67,15 @@ def measure_multiwl(scope, etalon, delta, outdir, n, wls) -> None:
             shot_dir = outdir / f"{shot:04d}"
             shot_dir.mkdir()
             for w in wls:
-                wl_dir = shot_dir / f"{w:.2f}"
+                wl_dir = shot_dir / f"{int(np.floor(w*100))}"
                 wl_dir.mkdir()
             for w in wls:
                 etalon.move_wl(w)
                 scope.acquisition_start()
                 wait_until_triggered(scope)
                 digitizer_levels = acquire_signals(scope)
-                wl_dir = shot_dir / f"{w:.2f}"
-                meas = compute_da(preamble, delta, digitizer_levels)
+                wl_dir = shot_dir / f"{int(np.floor(w*100))}"
+                meas = compute_signals(preamble, digitizer_levels)
                 save_measurement(meas, wl_dir)
                 bar.update(1)
     return
@@ -99,23 +97,14 @@ def save_measurement(meas, root) -> None:
     np.save(root / "par.npy", meas.par)
     np.save(root / "perp.npy", meas.perp)
     np.save(root / "ref.npy", meas.ref)
-    np.save(root / "da.npy", meas.da)
-    np.save(root / "cd.npy", meas.cd)
     return
 
 
-def compute_da(pre, delta, channels) -> Measurement:
+def compute_signals(pre, channels) -> Measurement:
     par = pre.v_scale_par * channels.par + pre.v_offset_par
     perp = pre.v_scale_perp * channels.perp + pre.v_offset_perp
     ref = pre.v_scale_ref * channels.ref + pre.v_offset_ref
-    divided_par = par / ref
-    num_points = len(divided_par)
-    da_without_pump = np.mean(divided_par[:int(np.floor(0.09*num_points))])
-    da = -np.log10(divided_par / da_without_pump)
-    divided_perp = perp / par
-    cd_without_pump = np.mean(divided_perp[:int(np.floor(0.09*num_points))])
-    cd = (4 / (2.3 * delta)) * (divided_perp - cd_without_pump)
-    meas = Measurement(par, perp, ref, da, cd)
+    meas = Measurement(par, perp, ref)
     return meas
 
 
