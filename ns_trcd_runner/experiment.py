@@ -1,6 +1,7 @@
 import itertools
 import sys
 import click
+import notifiers
 import numpy as np
 from dataclasses import dataclass
 from typing import Tuple, Union
@@ -56,7 +57,7 @@ def measure(scope, shutter, outdir, n) -> None:
             return
 
 
-def measure_multiwl(scope, etalon, outdir, num_meas, wls, chunk_size=10) -> None:
+def measure_multiwl(scope, etalon, outdir, num_meas, wls, chunk_size=10, phone_num=None) -> None:
     """Measure at multiple wavelengths.
     """
     initialize_scope_settings(scope)
@@ -83,6 +84,9 @@ def measure_multiwl(scope, etalon, outdir, num_meas, wls, chunk_size=10) -> None
                     meas_dir = outdir / f"{shot:04d}" / f"{int(np.floor(w*100))}"
                     save_measurement(meas, meas_dir)
                     bar.update(1)
+    if phone_num:
+        twilio = notifiers.get_notifier("twilio")
+        twilio.notify(message="Experiment complete", to=phone_num)
     return
 
 
