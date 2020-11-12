@@ -1,3 +1,4 @@
+import itertools
 import sys
 import click
 import numpy as np
@@ -55,29 +56,33 @@ def measure(scope, shutter, outdir, n) -> None:
             return
 
 
-def measure_multiwl(scope, etalon, outdir, n, wls) -> None:
+def measure_multiwl(scope, etalon, outdir, num_meas, wls, chunk_size=10) -> None:
     """Measure at multiple wavelengths.
     """
     initialize_scope_settings(scope)
     scope.acquisition_start()
     preamble = get_scope_preamble(scope)
-    bar_length = (n+1) * len(wls)
+    bar_length = num_meas * len(wls)
     with click.progressbar(length=bar_length, label="Measuring") as bar:
-        for shot in range(1, n+1):
-            shot_dir = outdir / f"{shot:04d}"
-            shot_dir.mkdir()
-            for w in wls:
-                wl_dir = shot_dir / f"{int(np.floor(w*100))}"
-                wl_dir.mkdir()
+        for meas_chunk in iter_chunks(range(num_meas), chunk_size):
+            # Create the directory structure for this chunk
+            for shot in meas_chunk:
+                shot_dir = outdir / f"{shot:04d}"
+                shot_dir.mkdir()
+                for w in wls:
+                    wl_dir = shot_dir / f"{int(np.floor(w*100))}"
+                    wl_dir.mkdir()
+            # Take the measurements
             for w in wls:
                 etalon.move_wl(w)
-                scope.acquisition_start()
-                wait_until_triggered(scope)
-                digitizer_levels = acquire_signals(scope)
-                wl_dir = shot_dir / f"{int(np.floor(w*100))}"
-                meas = compute_signals(preamble, digitizer_levels)
-                save_measurement(meas, wl_dir)
-                bar.update(1)
+                for shot in meas_chunk:
+                    scope.acquisition_start()
+                    wait_until_triggered(scope)
+                    digitizer_levels = acquire_signals(scope)
+                    meas = compute_signals(preamble, digitizer_levels)
+                    meas_dir = outdir / f"{shot:04d}" / f"{int(np.floor(w*100))}"
+                    save_measurement(meas, meas_dir)
+                    bar.update(1)
     return
 
 
@@ -169,3 +174,14 @@ def get_scope_preamble(scope) -> Preamble:
         points,
     )
     return pre
+
+
+def iter_chunks(iterable, size):
+    """Returns chunks of an iterable at a time.
+    """
+    it = iter(iterable)
+    while True:
+        chunk = tuple(itertools.islice(it, size))
+        if len(chunk) == 0:
+            break
+        yield chunk

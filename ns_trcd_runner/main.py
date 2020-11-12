@@ -19,7 +19,8 @@ from .actuator import Actuator
 @click.option("--wstop", type=click.FLOAT, help="The last wavelength for data collection.")
 @click.option("--wstep", type=click.FLOAT, help="The step between wavelengths.")
 @click.option("-w", "wlist", type=click.FLOAT, multiple=True, help="A set of individual wavelengths to measure at. May be specified multiple times.")
-def run(outdir, num_meas, wstart, wstop, wstep, wlist):
+@click.option("-c", "--chunk-size", type=click.INT, default=10, help="The number of measurements to take at a time at each wavelength.")
+def run(outdir, num_meas, wstart, wstop, wstep, wlist, chunk_size):
     """Do a TRCD experiment.
     """
     outdir = Path(outdir)
@@ -38,7 +39,7 @@ def run(outdir, num_meas, wstart, wstop, wstep, wlist):
     instr = rm.open_resource(scope_name)
     instr.timeout = 5_000  # ms
     scope = Oscilloscope(instr)
-    measure_multiwl(scope, act, outdir, num_meas, wl_list)
+    measure_multiwl(scope, act, outdir, num_meas, wl_list, chunk_size=chunk_size)
     instr.close()
     act.close()
     return
