@@ -24,6 +24,8 @@ from .actuator import Actuator
 @click.option("--overwrite", is_flag=True, help="Overwrite the contents of the output directory.")
 def run(outdir, num_meas, wstart, wstop, wstep, wlist, chunk_size, phone_num, overwrite):
     """Do a TRCD experiment.
+
+    It is up to the user to make sure that the actuator has been homed before running the experiment.
     """
     outdir = Path(outdir)
     if not outdir.exists():
@@ -33,9 +35,6 @@ def run(outdir, num_meas, wstart, wstop, wstep, wlist, chunk_size, phone_num, ov
         sys.exit(-1)
     wl_list = make_wavelength_list(wstart, wstop, wstep, wlist)
     act = Actuator()
-    click.echo("Homing etalon...", nl=False)
-    act.home()
-    click.echo("done")
     scope_name = get_scope_name()
     rm = pyvisa.ResourceManager()
     instr = rm.open_resource(scope_name)
