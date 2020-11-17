@@ -224,3 +224,6 @@ class Oscilloscope:
     def wait_until_triggered(self):
         while self.get_trigger_state() != "save":
             pass
+
+    def force_trigger(self):
+        self._instr.write("trigger force")
