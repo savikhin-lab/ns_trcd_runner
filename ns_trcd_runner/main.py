@@ -21,13 +21,14 @@ from .actuator import Actuator
 @click.option("-w", "wlist", type=click.FLOAT, multiple=True, help="A set of individual wavelengths to measure at. May be specified multiple times.")
 @click.option("-c", "--chunk-size", type=click.INT, default=10, help="The number of measurements to take at a time at each wavelength.")
 @click.option("--notify", "phone_num", type=click.STRING, help="The phone number to SMS when the experiment is done.")
-def run(outdir, num_meas, wstart, wstop, wstep, wlist, chunk_size, phone_num):
+@click.option("--overwrite", is_flag=True, help="Overwrite the contents of the output directory.")
+def run(outdir, num_meas, wstart, wstop, wstep, wlist, chunk_size, phone_num, overwrite):
     """Do a TRCD experiment.
     """
     outdir = Path(outdir)
     if not outdir.exists():
         outdir.mkdir()
-    if len(os.listdir(outdir)) != 0:
+    if (not overwrite) and (len(os.listdir(outdir)) != 0):
         print("Output directory is not empty.")
         sys.exit(-1)
     wl_list = make_wavelength_list(wstart, wstop, wstep, wlist)
