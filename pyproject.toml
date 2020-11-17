@@ -12,6 +12,7 @@ pyserial = "^3.4"
 scipy = "^1.4.1"
 click = "^7.1.2"
 notifiers = "^1.2.1"
+nidaqmx = "^0.5.7"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"

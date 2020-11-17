@@ -68,8 +68,14 @@ class Oscilloscope:
     def set_vertical_scale(self, channel, scale_volts):
         self._instr.write(f"ch{channel}:scale {scale_volts:.4E}")
 
+    def get_vertical_scale(self, channel):
+        return float(self._instr.query(f"ch{channel}:scale?"))
+
     def set_vertical_offset(self, channel, offset_volts):
         self._instr.write(f"ch{channel}:offset {offset_volts:.4E}")
+
+    def get_vertical_offset(self, channel):
+        return float(self._instr.query(f"ch{channel}:offset?"))
 
     def zero_vertical_position(self, channel):
         self._instr.write(f"ch{channel}:position 0")
@@ -86,13 +92,13 @@ class Oscilloscope:
         avg = self.measure_channel_mean(channel)
         self.set_vertical_offset(channel, avg)
 
-    def get_voltage_scale_factor(self):
+    def get_waveform_voltage_scale_factor(self):
         return float(self._instr.query("wfmoutpre:ymult?"))
 
-    def get_vertical_offset_dig_levels(self):
+    def get_waveform_vertical_offset_dig_levels(self):
         return int(self._instr.query("wfmoutpre:yoff?"))
 
-    def get_vertical_offset_volts(self):
+    def get_waveform_vertical_offset_volts(self):
         return float(self._instr.query("wfmoutpre:yzero?"))
 
     ####################################################################################
