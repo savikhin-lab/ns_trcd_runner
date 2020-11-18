@@ -69,8 +69,7 @@ def measure_multiwl(scope, etalon, outdir, num_meas, wls, chunk_size=10, phone_n
                     wl_dir.mkdir(exist_ok=True)
             # Take the measurements
             for w in wls:
-                etalon.move_wl(w)
-                dark_sigs = measure_dark_signals(scope)
+                dark_sigs = measure_dark_while_moving(etalon, w, scope)
                 for shot in meas_chunk:
                     scope.acquisition_start()
                     scope.wait_until_triggered()
@@ -85,8 +84,8 @@ def measure_multiwl(scope, etalon, outdir, num_meas, wls, chunk_size=10, phone_n
     return
 
 
-def measure_dark_signals(scope) -> DarkSignals:
-    """Measure the dark signals while the laser isn't present
+def measure_dark_while_moving(et, w, scope):
+    """Disable the shutter and collect dark signals while the motor moves.
     """
     settings = list()
     for chan in range(1, 4):
@@ -103,8 +102,12 @@ def measure_dark_signals(scope) -> DarkSignals:
         task.ao_channels.add_ao_voltage_chan("Dev1/ao0")
         task.write(0)
         task.start()
-        time.sleep(0.6)
-        scope.wait_until_triggered()
+        scope.acquisition_start()
+        time_start = time.time_ns()
+        et.move_wl(w)
+        # The oscilloscope takes some time to update the built-in measurements
+        while (time.time_ns() - time_start) < 1e9:
+            time.sleep(0.01)
         dark_par = scope.get_displayed_measurement_value(1)
         dark_perp = scope.get_displayed_measurement_value(2)
         dark_ref = scope.get_displayed_measurement_value(3)
