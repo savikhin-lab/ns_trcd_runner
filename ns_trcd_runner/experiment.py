@@ -67,6 +67,9 @@ def measure_multiwl(scope, etalon, outdir, num_meas, wls, chunk_size=10, phone_n
                 for w in wls:
                     wl_dir = shot_dir / f"{int(np.floor(w*100))}"
                     wl_dir.mkdir(exist_ok=True)
+            # The motor doesn't accurately move backwards, so you always need
+            # to start short of your target wavelength and then move towards it.
+            etalon.move(0)
             # Take the measurements
             for w in wls:
                 dark_sigs = measure_dark_while_moving(etalon, w, scope)
