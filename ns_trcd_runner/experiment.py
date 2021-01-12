@@ -58,33 +58,69 @@ def measure_multiwl(scope, etalon, outdir, num_meas, wls, chunk_size=10, phone_n
     scope.acquisition_start()
     preamble = get_scope_preamble(scope)
     bar_length = num_meas * len(wls)
+    dark_sig_records = np.empty((num_meas, len(wls), 3))
     with click.progressbar(length=bar_length, label="Measuring") as bar:
         for meas_chunk in iter_chunks(range(num_meas), chunk_size):
             # Create the directory structure for this chunk
             for shot in meas_chunk:
-                shot_dir = outdir / f"{shot:04d}"
+                shot_dir = outdir / shot_to_str(shot)
                 shot_dir.mkdir(exist_ok=True)
                 for w in wls:
-                    wl_dir = shot_dir / f"{int(np.floor(w*100))}"
+                    wl_dir = shot_dir / wl_to_str(w)
                     wl_dir.mkdir(exist_ok=True)
             # The motor doesn't accurately move backwards, so you always need
             # to start short of your target wavelength and then move towards it.
             etalon.move(0)
             # Take the measurements
-            for w in wls:
+            for wl_idx, w in enumerate(wls):
                 dark_sigs = measure_dark_while_moving(etalon, w, scope)
                 for shot in meas_chunk:
                     scope.acquisition_start()
                     scope.wait_until_triggered()
                     digitizer_levels = acquire_signals(scope)
-                    meas = compute_signals(preamble, digitizer_levels, dark_sigs=dark_sigs)
-                    meas_dir = outdir / f"{shot:04d}" / f"{int(np.floor(w*100))}"
+                    meas = compute_signals(preamble, digitizer_levels)
+                    meas_dir = outdir / shot_to_str(shot) / wl_to_str(w)
                     save_measurement(meas, meas_dir)
+                    dark_sig_records[shot, wl_idx, 0] = dark_sigs.par
+                    dark_sig_records[shot, wl_idx, 1] = dark_sigs.perp
+                    dark_sig_records[shot, wl_idx, 2] = dark_sigs.ref
                     bar.update(1)
+    save_dark_sigs(outdir, dark_sig_records)
     if phone_num:
         twilio = notifiers.get_notifier("twilio")
         twilio.notify(message="Experiment complete", to=phone_num)
     return
+
+
+def save_dark_sigs(outdir, dark_sigs):
+    """Save the dark signals into a JSON file.
+    """
+    outfile = outdir / "dark_sigs.npy"
+    np.save(outfile, dark_sigs)
+
+
+def wl_to_str(w: float) -> str:
+    """Convert a wavelength to its string representation.
+
+    This turns a wavelength into a string representation suitable for
+    filenames, directory names, etc.
+    """
+    return f"{int(np.floor(w*100))}"
+
+
+def wl_to_int(w: float) -> int:
+    """Convert a wavelength to an integer so that there are no decimals.
+    """
+    return int(np.floo(w*100))
+
+
+def shot_to_str(shot: int) -> str:
+    """Convert a shot number to its string representation.
+
+    This turns a shot number into a string representation suitable for
+    filenames, directory names, etc.
+    """
+    return f"{shot:04d}"
 
 
 def measure_dark_while_moving(et, w, scope):
