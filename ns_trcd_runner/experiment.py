@@ -120,7 +120,7 @@ def shot_to_str(shot: int) -> str:
     This turns a shot number into a string representation suitable for
     filenames, directory names, etc.
     """
-    return f"{shot:04d}"
+    return f"{shot+1:04d}"
 
 
 def measure_dark_while_moving(et, w, scope):
