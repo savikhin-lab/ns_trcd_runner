@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ns_trcd_runner"
-version = "0.2.0"
+version = "0.3.0"
 description = ""
 authors = ["Zach Mitchell <zmitchell@fastmail.com>"]
 
@@ -16,6 +16,9 @@ nidaqmx = "^0.5.7"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
+autopep8 = "^1.5.4"
+rope = "^0.18.0"
+flake8 = "^3.8.4"
 
 [tool.poetry.scripts]
 trcd = "ns_trcd_runner.main:run"

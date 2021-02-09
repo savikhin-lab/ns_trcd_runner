@@ -1,5 +1,4 @@
 import time
-import pyvisa as visa
 import numpy as np
 
 
@@ -97,9 +96,9 @@ class Oscilloscope:
         return float(self._instr.query("wfmoutpre:ymult?"))
 
     def get_waveform_vertical_offset_dig_levels(self):
-        return int(self._instr.query("wfmoutpre:yoff?"))
+        return float(self._instr.query("wfmoutpre:yoff?"))
 
-    def get_waveform_vertical_offset_volts(self):
+    def get_waveform_vertical_zero_point(self):
         return float(self._instr.query("wfmoutpre:yzero?"))
 
     ####################################################################################
@@ -199,7 +198,7 @@ class Oscilloscope:
         value_list = self._instr.query_ascii_values("curve?", delay=0.5)
         array = np.array(value_list)
         y_scale_factor = self.get_waveform_voltage_scale_factor()
-        y_offset_volts = self.get_waveform_vertical_offset_volts()
+        y_offset_volts = self.get_waveform_vertical_zero_point()
         scaled_data = array * y_scale_factor + y_offset_volts
         return scaled_data
 
@@ -211,7 +210,7 @@ class Oscilloscope:
         self._instr.write(f"trigger:a:edge:source ch{channel}")
 
     def set_trigger_source_aux(self):
-        self._instr.write(f"trigger:a:edge:source auxiliary")
+        self._instr.write("trigger:a:edge:source auxiliary")
 
     def trigger_from_line(self):
         self._instr.write("trigger:a:edge:source line")

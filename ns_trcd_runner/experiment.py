@@ -1,11 +1,10 @@
 import itertools
-import sys
 import time
 import click
 import notifiers
 import numpy as np
 from dataclasses import dataclass
-from typing import Tuple, Union
+from typing import Dict, List
 from nidaqmx import Task
 
 
@@ -16,10 +15,13 @@ class Preamble:
 
     t_res: float
     v_scale_par: float
+    v_zero_par: float
     v_offset_par: float
     v_scale_perp: float
+    v_zero_perp: float
     v_offset_perp: float
     v_scale_ref: float
+    v_zero_ref: float
     v_offset_ref: float
     points: int
 
@@ -34,7 +36,7 @@ class DigitizerLevels:
 
 
 @dataclass
-class Measurement:
+class Voltages:
     """Reconstructed signals for a measurement taken with only a 'with pump' shot.
     """
     par: np.ndarray
@@ -51,12 +53,17 @@ class DarkSignals:
     ref: float
 
 
-def measure_multiwl(scope, etalon, outdir, num_meas, wls, chunk_size=10, phone_num=None) -> None:
+def measure_multiwl(scope,
+                    etalon,
+                    outdir,
+                    num_meas,
+                    wls,
+                    chunk_size=10,
+                    phone_num=None) -> None:
     """Measure at multiple wavelengths.
     """
     initialize_scope_settings(scope)
     scope.acquisition_start()
-    preamble = get_scope_preamble(scope)
     bar_length = num_meas * len(wls)
     dark_sig_records = np.empty((num_meas, len(wls), 3))
     with click.progressbar(length=bar_length, label="Measuring") as bar:
@@ -73,12 +80,17 @@ def measure_multiwl(scope, etalon, outdir, num_meas, wls, chunk_size=10, phone_n
             etalon.move(0)
             # Take the measurements
             for wl_idx, w in enumerate(wls):
-                dark_sigs = measure_dark_while_moving(etalon, w, scope)
+                # dark_sigs = measure_dark_while_moving(etalon, w, scope)
+                dark_sigs = measure_dark_signals(scope)
+                etalon.move_wl(w)
+                optimize_vertical_scale(scope)
+                preamble = get_scope_preamble(scope)
                 for shot in meas_chunk:
                     scope.acquisition_start()
                     scope.wait_until_triggered()
-                    digitizer_levels = acquire_signals(scope)
-                    meas = compute_signals(preamble, digitizer_levels)
+                    digitizer_levels = transfer_signals_from_scope(scope)
+                    meas = reconstruct_voltages_from_dig_levels(
+                        preamble, digitizer_levels)
                     meas_dir = outdir / shot_to_str(shot) / wl_to_str(w)
                     save_measurement(meas, meas_dir)
                     dark_sig_records[shot, wl_idx, 0] = dark_sigs.par
@@ -92,11 +104,12 @@ def measure_multiwl(scope, etalon, outdir, num_meas, wls, chunk_size=10, phone_n
     return
 
 
-def save_dark_sigs(outdir, dark_sigs):
+def save_dark_sigs(outdir, dark_sigs) -> None:
     """Save the dark signals into a JSON file.
     """
     outfile = outdir / "dark_sigs.npy"
     np.save(outfile, dark_sigs)
+    return
 
 
 def wl_to_str(w: float) -> str:
@@ -111,7 +124,7 @@ def wl_to_str(w: float) -> str:
 def wl_to_int(w: float) -> int:
     """Convert a wavelength to an integer so that there are no decimals.
     """
-    return int(np.floo(w*100))
+    return int(np.floo(w * 100))
 
 
 def shot_to_str(shot: int) -> str:
@@ -123,20 +136,107 @@ def shot_to_str(shot: int) -> str:
     return f"{shot+1:04d}"
 
 
-def measure_dark_while_moving(et, w, scope):
-    """Disable the shutter and collect dark signals while the motor moves.
+def get_vertical_res_settings(scope) -> List[Dict[str, float]]:
+    """Returns the vertical settings for each data channel.
     """
     settings = list()
     for chan in range(1, 4):
-        # Store current settings
         chan_settings = {}
         chan_settings["offset"] = scope.get_vertical_offset(chan)
         chan_settings["scale"] = scope.get_vertical_scale(chan)
         settings.append(chan_settings)
-        # Set offset and scale for measurements close to zero
+    return settings
+
+
+def set_vertical_scale_for_measuring_offsets(scope, scale=100e-3) -> None:
+    """Sets the vertical resolution for each data channel large enough that
+    the mean of each channel can be measured."""
+    for chan in range(1, 4):
         scope.set_vertical_offset(chan, 0)
-        scope.set_vertical_scale(chan, 5e-3)
+        scope.set_vertical_scale(chan, scale)
+    return
+
+
+def set_vertical_scale_for_exp_signals(scope,
+                                       offsets: List[float],
+                                       scale=10e-3) -> None:
+    """Set the vertical scale for measuring signals.
+    """
+    for chan in range(1, 4):
+        scope.set_vertical_offset(chan, offsets[chan - 1])
+        scope.set_vertical_scale(chan, scale)
+    return
+
+
+def set_vertical_scale_for_dark_signals(scope) -> None:
+    """Set the vertical scale for measuring dark signals.
+    """
+    for chan in range(1, 4):
+        scope.set_vertical_offset(chan, 0)
+        scope.set_vertical_scale(chan, 2e-3)
+    return
+
+
+def optimize_vertical_scale(scope) -> None:
+    """Set the DC offset such that the signals fit on the screen with the
+    smallest possible vertical resolution.
+    """
+    # Do a coarse measurement
+    set_vertical_scale_for_measuring_offsets(scope, scale=100e-3)
     preamble = get_scope_preamble(scope)
+    scope.acquisition_start()
+    scope.wait_until_triggered()
+    time.sleep(0.5)
+    digitizer_levels = transfer_signals_from_scope(scope)
+    voltages = reconstruct_voltages_from_dig_levels(preamble, digitizer_levels)
+    # Do a finer measurement
+    set_vertical_scale_for_exp_signals(
+        scope,
+        [voltages.par.mean(),
+         voltages.perp.mean(),
+         voltages.ref.mean()],
+        scale=20e-3)
+    preamble = get_scope_preamble(scope)
+    scope.acquisition_start()
+    scope.wait_until_triggered()
+    time.sleep(0.5)
+    digitizer_levels = transfer_signals_from_scope(scope)
+    voltages = reconstruct_voltages_from_dig_levels(preamble, digitizer_levels)
+    set_vertical_scale_for_exp_signals(
+        scope,
+        [voltages.par.mean(),
+         voltages.perp.mean(),
+         voltages.ref.mean()],
+        scale=5e-3)
+    return
+
+
+def measure_dark_signals(scope) -> DarkSignals:
+    """Disable the shutter and collect dark signals.
+    """
+    set_vertical_scale_for_dark_signals(scope)
+    preamble = get_scope_preamble(scope)
+    with Task() as task:
+        task.ao_channels.add_ao_voltage_chan("Dev1/ao0")
+        task.write(0)
+        task.start()
+        scope.acquisition_start()
+        scope.wait_until_triggered()
+        digitizer_levels = transfer_signals_from_scope(scope)
+        voltages = reconstruct_voltages_from_dig_levels(
+            preamble, digitizer_levels)
+        dark_sigs = DarkSignals(voltages.par.mean(), voltages.perp.mean(),
+                                voltages.ref.mean())
+    with Task() as task:
+        task.ao_channels.add_ao_voltage_chan("Dev1/ao0")
+        task.write(8, auto_start=True)
+    return dark_sigs
+
+
+def measure_dark_while_moving(et, w, scope) -> DarkSignals:
+    """Disable the shutter and collect dark signals while the motor moves.
+    """
+    set_vertical_scale_for_dark_signals(scope)
     with Task() as task:
         task.ao_channels.add_ao_voltage_chan("Dev1/ao0")
         task.write(0)
@@ -154,15 +254,11 @@ def measure_dark_while_moving(et, w, scope):
     with Task() as task:
         task.ao_channels.add_ao_voltage_chan("Dev1/ao0")
         task.write(8, auto_start=True)
-    # Restore previous settings
-    for chan in range(1, 4):
-        scope.set_vertical_offset(chan, settings[chan - 1]["offset"])
-        scope.set_vertical_scale(chan, settings[chan - 1]["scale"])
     return dark_sigs
 
 
 def make_measurement_dirs(outdir, n, wls) -> None:
-    for shot in range(1, n+1):
+    for shot in range(1, n + 1):
         shot_dir = outdir / str(shot)
         shot_dir.mkdir()
         for wavelength in wls:
@@ -180,20 +276,28 @@ def save_measurement(meas, root) -> None:
     return
 
 
-def compute_signals(pre, channels, dark_sigs=None) -> Measurement:
+def reconstruct_voltages_from_dig_levels(pre,
+                                         channels,
+                                         dark_sigs=None) -> Voltages:
     if dark_sigs is not None:
-        par = pre.v_scale_par * channels.par + pre.v_offset_par - dark_sigs.par
-        perp = pre.v_scale_perp * channels.perp + pre.v_offset_perp - dark_sigs.perp
-        ref = pre.v_scale_ref * channels.ref + pre.v_offset_ref - dark_sigs.ref
+        par = pre.v_scale_par * (
+            channels.par - pre.v_offset_par) + pre.v_zero_par - dark_sigs.par
+        perp = pre.v_scale_perp * (channels.perp - pre.v_offset_perp
+                                   ) + pre.v_zero_perp - dark_sigs.perp
+        ref = pre.v_scale_ref * (
+            channels.ref - pre.v_offset_ref) + pre.v_zero_ref - dark_sigs.ref
     else:
-        par = pre.v_scale_par * channels.par + pre.v_offset_par
-        perp = pre.v_scale_perp * channels.perp + pre.v_offset_perp
-        ref = pre.v_scale_ref * channels.ref + pre.v_offset_ref
-    meas = Measurement(par, perp, ref)
+        par = pre.v_scale_par * (channels.par -
+                                 pre.v_offset_par) + pre.v_zero_par
+        perp = pre.v_scale_perp * (channels.perp -
+                                   pre.v_offset_perp) + pre.v_zero_perp
+        ref = pre.v_scale_ref * (channels.ref -
+                                 pre.v_offset_ref) + pre.v_zero_ref
+    meas = Voltages(par, perp, ref)
     return meas
 
 
-def acquire_signals(scope) -> DigitizerLevels:
+def transfer_signals_from_scope(scope) -> DigitizerLevels:
     """Acquire raw digitizer levels for each channel.
     """
     scope.set_waveform_data_source_single_channel(1)
@@ -229,21 +333,27 @@ def get_scope_preamble(scope) -> Preamble:
     time_res = scope.get_time_resolution()
     scope.set_waveform_data_source_single_channel(1)
     v_scale_par = scope.get_waveform_voltage_scale_factor()
-    v_offset_par = scope.get_waveform_vertical_offset_volts()
+    v_zero_par = scope.get_waveform_vertical_zero_point()
+    v_offset_par = scope.get_waveform_vertical_offset_dig_levels()
     scope.set_waveform_data_source_single_channel(2)
     v_scale_perp = scope.get_waveform_voltage_scale_factor()
-    v_offset_perp = scope.get_waveform_vertical_offset_volts()
+    v_zero_perp = scope.get_waveform_vertical_zero_point()
+    v_offset_perp = scope.get_waveform_vertical_offset_dig_levels()
     scope.set_waveform_data_source_single_channel(3)
     v_scale_ref = scope.get_waveform_voltage_scale_factor()
-    v_offset_ref = scope.get_waveform_vertical_offset_volts()
+    v_zero_ref = scope.get_waveform_vertical_zero_point()
+    v_offset_ref = scope.get_waveform_vertical_offset_dig_levels()
     points = scope.get_waveform_length()
     pre = Preamble(
         time_res,
         v_scale_par,
+        v_zero_par,
         v_offset_par,
         v_scale_perp,
+        v_zero_perp,
         v_offset_perp,
         v_scale_ref,
+        v_zero_ref,
         v_offset_ref,
         points,
     )
