@@ -81,8 +81,9 @@ def measure_multiwl(scope,
             # Take the measurements
             for wl_idx, w in enumerate(wls):
                 # dark_sigs = measure_dark_while_moving(etalon, w, scope)
-                dark_sigs = measure_dark_signals(scope)
                 etalon.move_wl(w)
+                dark_sigs = measure_dark_signals(scope)
+                time.sleep(1)  # This is to solve some timing issue
                 optimize_vertical_scale(scope)
                 preamble = get_scope_preamble(scope)
                 for shot in meas_chunk:
@@ -186,20 +187,6 @@ def optimize_vertical_scale(scope) -> None:
     preamble = get_scope_preamble(scope)
     scope.acquisition_start()
     scope.wait_until_triggered()
-    time.sleep(0.5)
-    digitizer_levels = transfer_signals_from_scope(scope)
-    voltages = reconstruct_voltages_from_dig_levels(preamble, digitizer_levels)
-    # Do a finer measurement
-    set_vertical_scale_for_exp_signals(
-        scope,
-        [voltages.par.mean(),
-         voltages.perp.mean(),
-         voltages.ref.mean()],
-        scale=20e-3)
-    preamble = get_scope_preamble(scope)
-    scope.acquisition_start()
-    scope.wait_until_triggered()
-    time.sleep(0.5)
     digitizer_levels = transfer_signals_from_scope(scope)
     voltages = reconstruct_voltages_from_dig_levels(preamble, digitizer_levels)
     set_vertical_scale_for_exp_signals(
@@ -207,7 +194,7 @@ def optimize_vertical_scale(scope) -> None:
         [voltages.par.mean(),
          voltages.perp.mean(),
          voltages.ref.mean()],
-        scale=5e-3)
+        scale=10e-3)
     return
 
 
