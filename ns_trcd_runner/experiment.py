@@ -280,19 +280,13 @@ def reconstruct_voltages_from_dig_levels(pre,
                                          channels,
                                          dark_sigs=None) -> Voltages:
     if dark_sigs is not None:
-        par = pre.v_scale_par * (
-            channels.par - pre.v_offset_par) + pre.v_zero_par - dark_sigs.par
-        perp = pre.v_scale_perp * (channels.perp - pre.v_offset_perp
-                                   ) + pre.v_zero_perp - dark_sigs.perp
-        ref = pre.v_scale_ref * (
-            channels.ref - pre.v_offset_ref) + pre.v_zero_ref - dark_sigs.ref
+        par = pre.v_scale_par * (channels.par - pre.v_offset_par) + pre.v_zero_par - dark_sigs.par
+        perp = pre.v_scale_perp * (channels.perp - pre.v_offset_perp) + pre.v_zero_perp - dark_sigs.perp
+        ref = pre.v_scale_ref * (channels.ref - pre.v_offset_ref) + pre.v_zero_ref - dark_sigs.ref
     else:
-        par = pre.v_scale_par * (channels.par -
-                                 pre.v_offset_par) + pre.v_zero_par
-        perp = pre.v_scale_perp * (channels.perp -
-                                   pre.v_offset_perp) + pre.v_zero_perp
-        ref = pre.v_scale_ref * (channels.ref -
-                                 pre.v_offset_ref) + pre.v_zero_ref
+        par = pre.v_scale_par * (channels.par - pre.v_offset_par) + pre.v_zero_par
+        perp = pre.v_scale_perp * (channels.perp - pre.v_offset_perp) + pre.v_zero_perp
+        ref = pre.v_scale_ref * (channels.ref - pre.v_offset_ref) + pre.v_zero_ref
     meas = Voltages(par, perp, ref)
     return meas
 
