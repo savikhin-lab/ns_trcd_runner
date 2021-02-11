@@ -233,7 +233,7 @@ class Oscilloscope:
 
     def force_trigger(self):
         self._instr.write("trigger force")
-    
+
     def set_trigger_holdoff(self, t=0.5):
         self._instr.write("trigger:a:holdoff:by time")
         self._instr.write(f"trigger:a:holdoff:time {t}")
