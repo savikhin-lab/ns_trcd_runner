@@ -324,6 +324,8 @@ def initialize_scope_settings(scope) -> None:
     scope.add_displayed_mean_measurement(1, 1)
     scope.add_displayed_mean_measurement(2, 2)
     scope.add_displayed_mean_measurement(3, 3)
+    scope.zero_all_vertical_positions()
+    scope.set_trigger_holdoff()
     return
 
 
