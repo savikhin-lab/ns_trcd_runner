@@ -78,6 +78,7 @@ def measure_multiwl(scope,
             # The motor doesn't accurately move backwards, so you always need
             # to start short of your target wavelength and then move towards it.
             etalon.move(0)
+            time.sleep(2)
             # Take the measurements
             for wl_idx, w in enumerate(wls):
                 # dark_sigs = measure_dark_while_moving(etalon, w, scope)
