@@ -22,7 +22,8 @@ from .actuator import Actuator
 @click.option("-c", "--chunk-size", type=click.INT, default=10, help="The number of measurements to take at a time at each wavelength.")
 @click.option("--notify", "phone_num", type=click.STRING, help="The phone number to SMS when the experiment is done.")
 @click.option("--overwrite", is_flag=True, help="Overwrite the contents of the output directory.")
-def run(outdir, num_meas, wstart, wstop, wstep, wlist, chunk_size, phone_num, overwrite):
+@click.option("-d", "--dark", type=click.INT, help="The number of dark traces to measure at the end of the experiment.")
+def run(outdir, num_meas, wstart, wstop, wstep, wlist, chunk_size, phone_num, overwrite, dark):
     """Do a TRCD experiment.
 
     It is up to the user to make sure that the actuator has been homed before running the experiment.
@@ -40,7 +41,7 @@ def run(outdir, num_meas, wstart, wstop, wstep, wlist, chunk_size, phone_num, ov
     instr = rm.open_resource(scope_name)
     instr.timeout = 5_000  # ms
     scope = Oscilloscope(instr)
-    measure_multiwl(scope, act, outdir, num_meas, wl_list, chunk_size=chunk_size, phone_num=phone_num)
+    measure_multiwl(scope, act, outdir, num_meas, wl_list, chunk_size=chunk_size, phone_num=phone_num, dark_traces=dark)
     instr.close()
     act.close()
     return

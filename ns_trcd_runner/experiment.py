@@ -59,7 +59,8 @@ def measure_multiwl(scope,
                     num_meas,
                     wls,
                     chunk_size=10,
-                    phone_num=None) -> None:
+                    phone_num=None,
+                    dark_traces=None) -> None:
     """Measure at multiple wavelengths.
     """
     initialize_scope_settings(scope)
@@ -100,10 +101,39 @@ def measure_multiwl(scope,
                     dark_sig_records[shot, wl_idx, 2] = dark_sigs.ref
                     bar.update(1)
     save_dark_sigs(outdir, dark_sig_records)
+    if dark_traces is not None:
+        etalon.move(850)
+        time.sleep(5)
+        measure_spike(outdir, scope, dark_traces)
     if phone_num:
         twilio = notifiers.get_notifier("twilio")
         twilio.notify(message="Experiment complete", to=phone_num)
     return
+
+
+def measure_spike(out_dir, scope, n) -> None:
+    """Measure traces with just the pump pulse and no probe.
+    """
+    dark_dir = out_dir / "_dark"
+    dark_dir.mkdir(exist_ok=True)
+    optimize_vertical_scale(scope)
+    pre = get_scope_preamble(scope)
+    with Task() as task:
+        task.ao_channels.add_ao_voltage_chan("Dev1/ao0")
+        task.write(0)
+        task.start()
+        with click.progressbar(range(n), label="Measuring dark traces") as indices:
+            for i in indices:
+                scope.acquisition_start()
+                scope.wait_until_triggered()
+                dig_levels = transfer_signals_from_scope(scope)
+                meas = reconstruct_voltages_from_dig_levels(pre, dig_levels)
+                meas_dir = dark_dir / shot_to_str(i)
+                meas_dir.mkdir(exist_ok=True)
+                save_measurement(meas, meas_dir)
+    with Task() as task:
+        task.ao_channels.add_ao_voltage_chan("Dev1/ao0")
+        task.write(8, auto_start=True)
 
 
 def save_dark_sigs(outdir, dark_sigs) -> None:
