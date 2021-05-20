@@ -1,4 +1,4 @@
-from ctypes import cdll, c_short, POINTER, c_char, c_int, c_bool, CDLL, CFUNCTYPE
+from ctypes import cdll, c_short, POINTER, c_char, c_int, c_bool
 
 
 def bind(lib, fn_name, argtypes=None, restypes=None):

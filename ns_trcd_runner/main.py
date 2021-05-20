@@ -1,11 +1,9 @@
-import argparse
 import os
 import sys
 import click
 import numpy as np
 import pyvisa
 from pathlib import Path
-from typing import List
 from serial import Serial
 from .experiment import measure_multiwl
 from .oscilloscope import Oscilloscope

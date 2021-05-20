@@ -2,7 +2,7 @@ import os
 import sys
 import time
 import numpy as np
-from ctypes import c_short, c_int, c_char_p
+from ctypes import c_int, c_char_p
 from pathlib import Path
 from scipy.interpolate import interp1d
 from . import actuator_low_level as actuator
