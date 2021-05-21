@@ -55,6 +55,7 @@ class DarkSignals:
 
 def measure_multiwl(scope,
                     etalon,
+                    monochromator,
                     outdir,
                     num_meas,
                     wls,
@@ -82,9 +83,9 @@ def measure_multiwl(scope,
             time.sleep(2)
             # Take the measurements
             for wl_idx, w in enumerate(wls):
-                # dark_sigs = measure_dark_while_moving(etalon, w, scope)
                 etalon.move_wl(w)
                 dark_sigs = measure_dark_signals(scope)
+                monochromator.move_wl(w)
                 time.sleep(1)  # This is to solve some timing issue
                 optimize_vertical_scale(scope)
                 preamble = get_scope_preamble(scope)
@@ -103,11 +104,13 @@ def measure_multiwl(scope,
     save_dark_sigs(outdir, dark_sig_records)
     if dark_traces is not None:
         etalon.move(850)
+        monochromator.move_wl(850)
         time.sleep(5)
         measure_spike(outdir, scope, dark_traces)
     if phone_num:
         twilio = notifiers.get_notifier("twilio")
         twilio.notify(message="Experiment complete", to=phone_num)
+    monochromator.go_home()
     return
 
 

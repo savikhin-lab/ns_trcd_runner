@@ -8,6 +8,7 @@ from serial import Serial
 from .experiment import measure_multiwl
 from .oscilloscope import Oscilloscope
 from .actuator import Actuator
+from .monochromator import Monochromator
 
 
 @click.command()
@@ -21,7 +22,8 @@ from .actuator import Actuator
 @click.option("--notify", "phone_num", type=click.STRING, help="The phone number to SMS when the experiment is done.")
 @click.option("--overwrite", is_flag=True, help="Overwrite the contents of the output directory.")
 @click.option("-d", "--dark", type=click.INT, help="The number of dark traces to measure at the end of the experiment.")
-def run(outdir, num_meas, wstart, wstop, wstep, wlist, chunk_size, phone_num, overwrite, dark):
+@click.option("--no-monochromator", "no_mon", is_flag=True, help="Don't move the monochromator.")
+def run(outdir, num_meas, wstart, wstop, wstep, wlist, chunk_size, phone_num, overwrite, dark, no_mon):
     """Do a TRCD experiment.
 
     It is up to the user to make sure that the actuator has been homed before running the experiment.
@@ -33,13 +35,22 @@ def run(outdir, num_meas, wstart, wstop, wstep, wlist, chunk_size, phone_num, ov
         print("Output directory is not empty.")
         sys.exit(-1)
     wl_list = make_wavelength_list(wstart, wstop, wstep, wlist)
+    if no_mon and (len(wl_list) > 1):
+        click.echo("Can't measure at more than one wavelength without moving monochromator.", err=True)
+        sys.exit(-1)
     act = Actuator()
     scope_name = get_scope_name()
     rm = pyvisa.ResourceManager()
     instr = rm.open_resource(scope_name)
     instr.timeout = 5_000  # ms
     scope = Oscilloscope(instr)
-    measure_multiwl(scope, act, outdir, num_meas, wl_list, chunk_size=chunk_size, phone_num=phone_num, dark_traces=dark)
+    monochromator_port = os.environ.get("MONOCHROMATOR_PORT")
+    if monochromator_port is None:
+        click.echo("MONOCHROMATOR_PORT environment variable is not defined.", err=True)
+        sys.exit(-1)
+    mon = Monochromator(monochromator_port)
+    measure_multiwl(scope, act, mon, outdir, num_meas, wl_list,
+                    chunk_size=chunk_size, phone_num=phone_num, dark_traces=dark)
     instr.close()
     act.close()
     return
