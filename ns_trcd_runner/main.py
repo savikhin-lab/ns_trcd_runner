@@ -35,9 +35,6 @@ def run(outdir, num_meas, wstart, wstop, wstep, wlist, chunk_size, phone_num, ov
         print("Output directory is not empty.")
         sys.exit(-1)
     wl_list = make_wavelength_list(wstart, wstop, wstep, wlist)
-    if no_mon and (len(wl_list) > 1):
-        click.echo("Can't measure at more than one wavelength without moving monochromator.", err=True)
-        sys.exit(-1)
     act = Actuator()
     scope_name = get_scope_name()
     rm = pyvisa.ResourceManager()
@@ -48,7 +45,10 @@ def run(outdir, num_meas, wstart, wstop, wstep, wlist, chunk_size, phone_num, ov
     if monochromator_port is None:
         click.echo("MONOCHROMATOR_PORT environment variable is not defined.", err=True)
         sys.exit(-1)
-    mon = Monochromator(monochromator_port)
+    if no_mon:
+        mon = None
+    else:
+        mon = Monochromator(monochromator_port)
     measure_multiwl(scope, act, mon, outdir, num_meas, wl_list,
                     chunk_size=chunk_size, phone_num=phone_num, dark_traces=dark)
     instr.close()
@@ -108,14 +108,3 @@ def dir_is_empty(path):
     for _ in path.iterdir():
         return False
     return True
-
-
-def main(save_path, num_meas, instrument_name, shutter_port, delta):
-    rm = pyvisa.ResourceManager()
-    instr = rm.open_resource(instrument_name)
-    instr.timeout = 5_000  # ms
-    scope = Oscilloscope(instr)
-    shutter = Serial(shutter_port, baudrate=9_600, timeout=5)
-    measure(scope, delta, save_path, num_meas)
-    instr.close()
-    shutter.close()

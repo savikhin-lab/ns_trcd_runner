@@ -83,9 +83,10 @@ def measure_multiwl(scope,
             time.sleep(2)
             # Take the measurements
             for wl_idx, w in enumerate(wls):
+                if monochromator is not None:
+                    monochromator.move_wl(w - 0.5)  # it's slightly miscalibrated
                 etalon.move_wl(w)
                 dark_sigs = measure_dark_signals(scope)
-                monochromator.move_wl(w)
                 time.sleep(1)  # This is to solve some timing issue
                 optimize_vertical_scale(scope)
                 preamble = get_scope_preamble(scope)
@@ -100,17 +101,20 @@ def measure_multiwl(scope,
                     dark_sig_records[shot, wl_idx, 0] = dark_sigs.par
                     dark_sig_records[shot, wl_idx, 1] = dark_sigs.perp
                     dark_sig_records[shot, wl_idx, 2] = dark_sigs.ref
+                    save_dark_sigs(outdir, dark_sig_records, name="dark_sigs_tmp.npy")
                     bar.update(1)
     save_dark_sigs(outdir, dark_sig_records)
     if dark_traces is not None:
-        etalon.move(850)
-        monochromator.move_wl(850)
+        if monochromator is not None:
+            monochromator.move_wl(828)  # fluorescence maximum
+        etalon.move_wl(828)  # fluorescence maximum
         time.sleep(5)
         measure_spike(outdir, scope, dark_traces)
     if phone_num:
         twilio = notifiers.get_notifier("twilio")
         twilio.notify(message="Experiment complete", to=phone_num)
-    monochromator.go_home()
+    if monochromator is not None:
+        monochromator.go_home()
     return
 
 
@@ -119,7 +123,7 @@ def measure_spike(out_dir, scope, n) -> None:
     """
     dark_dir = out_dir / "_dark"
     dark_dir.mkdir(exist_ok=True)
-    optimize_vertical_scale(scope)
+    set_vertical_scale_for_exp_signals(scope, [0.0, 0.0, 0.0])
     pre = get_scope_preamble(scope)
     with Task() as task:
         task.ao_channels.add_ao_voltage_chan("Dev1/ao0")
@@ -139,10 +143,10 @@ def measure_spike(out_dir, scope, n) -> None:
         task.write(8, auto_start=True)
 
 
-def save_dark_sigs(outdir, dark_sigs) -> None:
+def save_dark_sigs(outdir, dark_sigs, name="dark_sigs.npy") -> None:
     """Save the dark signals into a JSON file.
     """
-    outfile = outdir / "dark_sigs.npy"
+    outfile = outdir / name
     np.save(outfile, dark_sigs)
     return
 
