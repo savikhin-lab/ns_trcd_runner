@@ -4,7 +4,6 @@ import click
 import numpy as np
 import pyvisa
 from pathlib import Path
-from serial import Serial
 from .experiment import measure_multiwl
 from .oscilloscope import Oscilloscope
 from .actuator import Actuator
@@ -21,9 +20,8 @@ from .monochromator import Monochromator
 @click.option("-c", "--chunk-size", type=click.INT, default=10, help="The number of measurements to take at a time at each wavelength.")
 @click.option("--notify", "phone_num", type=click.STRING, help="The phone number to SMS when the experiment is done.")
 @click.option("--overwrite", is_flag=True, help="Overwrite the contents of the output directory.")
-@click.option("-d", "--dark", type=click.INT, help="The number of dark traces to measure at the end of the experiment.")
 @click.option("--no-monochromator", "no_mon", is_flag=True, help="Don't move the monochromator.")
-def run(outdir, num_meas, wstart, wstop, wstep, wlist, chunk_size, phone_num, overwrite, dark, no_mon):
+def run(outdir, num_meas, wstart, wstop, wstep, wlist, chunk_size, phone_num, overwrite, no_mon):
     """Do a TRCD experiment.
 
     It is up to the user to make sure that the actuator has been homed before running the experiment.
@@ -50,7 +48,7 @@ def run(outdir, num_meas, wstart, wstop, wstep, wlist, chunk_size, phone_num, ov
     else:
         mon = Monochromator(monochromator_port)
     measure_multiwl(scope, act, mon, outdir, num_meas, wl_list,
-                    chunk_size=chunk_size, phone_num=phone_num, dark_traces=dark)
+                    chunk_size=chunk_size, phone_num=phone_num)
     instr.close()
     act.close()
     return

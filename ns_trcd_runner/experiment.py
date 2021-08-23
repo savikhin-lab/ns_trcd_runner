@@ -5,7 +5,6 @@ import notifiers
 import numpy as np
 from dataclasses import dataclass
 from typing import Dict, List
-from nidaqmx import Task
 
 
 @dataclass
@@ -60,14 +59,12 @@ def measure_multiwl(scope,
                     num_meas,
                     wls,
                     chunk_size=10,
-                    phone_num=None,
-                    dark_traces=None) -> None:
+                    phone_num=None) -> None:
     """Measure at multiple wavelengths.
     """
     initialize_scope_settings(scope)
     scope.acquisition_start()
     bar_length = num_meas * len(wls)
-    dark_sig_records = np.empty((num_meas, len(wls), 3))
     with click.progressbar(length=bar_length, label="Measuring") as bar:
         for meas_chunk in iter_chunks(range(num_meas), chunk_size):
             # Create the directory structure for this chunk
@@ -86,7 +83,6 @@ def measure_multiwl(scope,
                 if monochromator is not None:
                     monochromator.move_wl(w - 0.5)  # it's slightly miscalibrated
                 etalon.move_wl(w)
-                dark_sigs = measure_dark_signals(scope)
                 time.sleep(1)  # This is to solve some timing issue
                 optimize_vertical_scale(scope)
                 preamble = get_scope_preamble(scope)
@@ -98,56 +94,12 @@ def measure_multiwl(scope,
                         preamble, digitizer_levels)
                     meas_dir = outdir / shot_to_str(shot) / wl_to_str(w)
                     save_measurement(meas, meas_dir)
-                    dark_sig_records[shot, wl_idx, 0] = dark_sigs.par
-                    dark_sig_records[shot, wl_idx, 1] = dark_sigs.perp
-                    dark_sig_records[shot, wl_idx, 2] = dark_sigs.ref
-                    save_dark_sigs(outdir, dark_sig_records, name="dark_sigs_tmp.npy")
                     bar.update(1)
-    save_dark_sigs(outdir, dark_sig_records)
-    if dark_traces is not None:
-        if monochromator is not None:
-            monochromator.move_wl(828)  # fluorescence maximum
-        etalon.move_wl(828)  # fluorescence maximum
-        time.sleep(5)
-        measure_spike(outdir, scope, dark_traces)
     if phone_num:
         twilio = notifiers.get_notifier("twilio")
         twilio.notify(message="Experiment complete", to=phone_num)
     if monochromator is not None:
         monochromator.go_home()
-    return
-
-
-def measure_spike(out_dir, scope, n) -> None:
-    """Measure traces with just the pump pulse and no probe.
-    """
-    dark_dir = out_dir / "_dark"
-    dark_dir.mkdir(exist_ok=True)
-    set_vertical_scale_for_exp_signals(scope, [0.0, 0.0, 0.0])
-    pre = get_scope_preamble(scope)
-    with Task() as task:
-        task.ao_channels.add_ao_voltage_chan("Dev1/ao0")
-        task.write(0)
-        task.start()
-        with click.progressbar(range(n), label="Measuring dark traces") as indices:
-            for i in indices:
-                scope.acquisition_start()
-                scope.wait_until_triggered()
-                dig_levels = transfer_signals_from_scope(scope)
-                meas = reconstruct_voltages_from_dig_levels(pre, dig_levels)
-                meas_dir = dark_dir / shot_to_str(i)
-                meas_dir.mkdir(exist_ok=True)
-                save_measurement(meas, meas_dir)
-    with Task() as task:
-        task.ao_channels.add_ao_voltage_chan("Dev1/ao0")
-        task.write(8, auto_start=True)
-
-
-def save_dark_sigs(outdir, dark_sigs, name="dark_sigs.npy") -> None:
-    """Save the dark signals into a JSON file.
-    """
-    outfile = outdir / name
-    np.save(outfile, dark_sigs)
     return
 
 
@@ -207,15 +159,6 @@ def set_vertical_scale_for_exp_signals(scope,
     return
 
 
-def set_vertical_scale_for_dark_signals(scope) -> None:
-    """Set the vertical scale for measuring dark signals.
-    """
-    for chan in range(1, 4):
-        scope.set_vertical_offset(chan, 0)
-        scope.set_vertical_scale(chan, 2e-3)
-    return
-
-
 def optimize_vertical_scale(scope) -> None:
     """Set the DC offset such that the signals fit on the screen with the
     smallest possible vertical resolution.
@@ -234,52 +177,6 @@ def optimize_vertical_scale(scope) -> None:
          voltages.ref.mean()],
         scale=10e-3)
     return
-
-
-def measure_dark_signals(scope) -> DarkSignals:
-    """Disable the shutter and collect dark signals.
-    """
-    set_vertical_scale_for_dark_signals(scope)
-    preamble = get_scope_preamble(scope)
-    with Task() as task:
-        task.ao_channels.add_ao_voltage_chan("Dev1/ao0")
-        task.write(0)
-        task.start()
-        scope.acquisition_start()
-        scope.wait_until_triggered()
-        digitizer_levels = transfer_signals_from_scope(scope)
-        voltages = reconstruct_voltages_from_dig_levels(
-            preamble, digitizer_levels)
-        dark_sigs = DarkSignals(voltages.par.mean(), voltages.perp.mean(),
-                                voltages.ref.mean())
-    with Task() as task:
-        task.ao_channels.add_ao_voltage_chan("Dev1/ao0")
-        task.write(8, auto_start=True)
-    return dark_sigs
-
-
-def measure_dark_while_moving(et, w, scope) -> DarkSignals:
-    """Disable the shutter and collect dark signals while the motor moves.
-    """
-    set_vertical_scale_for_dark_signals(scope)
-    with Task() as task:
-        task.ao_channels.add_ao_voltage_chan("Dev1/ao0")
-        task.write(0)
-        task.start()
-        scope.acquisition_start()
-        time_start = time.time_ns()
-        et.move_wl(w)
-        # The oscilloscope takes some time to update the built-in measurements
-        while (time.time_ns() - time_start) < 1e9:
-            time.sleep(0.01)
-        dark_par = scope.get_displayed_measurement_value(1)
-        dark_perp = scope.get_displayed_measurement_value(2)
-        dark_ref = scope.get_displayed_measurement_value(3)
-        dark_sigs = DarkSignals(dark_par, dark_perp, dark_ref)
-    with Task() as task:
-        task.ao_channels.add_ao_voltage_chan("Dev1/ao0")
-        task.write(8, auto_start=True)
-    return dark_sigs
 
 
 def make_measurement_dirs(outdir, n, wls) -> None:
