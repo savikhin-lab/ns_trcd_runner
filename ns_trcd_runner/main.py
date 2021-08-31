@@ -47,8 +47,12 @@ def run(outdir, num_meas, wstart, wstop, wstep, wlist, chunk_size, phone_num, ov
         mon = None
     else:
         mon = Monochromator(monochromator_port)
+    try:
+        mon_offset = float(os.environ.get("MONOCHROMATOR_OFFSET"))
+    except TypeError:
+        mon_offset = 0
     measure_multiwl(scope, act, mon, outdir, num_meas, wl_list,
-                    chunk_size=chunk_size, phone_num=phone_num)
+                    chunk_size=chunk_size, phone_num=phone_num, mon_offset=mon_offset)
     instr.close()
     act.close()
     return

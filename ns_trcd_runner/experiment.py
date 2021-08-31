@@ -59,7 +59,8 @@ def measure_multiwl(scope,
                     num_meas,
                     wls,
                     chunk_size=10,
-                    phone_num=None) -> None:
+                    phone_num=None,
+                    mon_offset=0) -> None:
     """Measure at multiple wavelengths.
     """
     initialize_scope_settings(scope)
@@ -81,7 +82,7 @@ def measure_multiwl(scope,
             # Take the measurements
             for wl_idx, w in enumerate(wls):
                 if monochromator is not None:
-                    monochromator.move_wl(w - 0.5)  # it's slightly miscalibrated
+                    monochromator.move_wl(w - mon_offset)  # it's slightly miscalibrated
                 etalon.move_wl(w)
                 time.sleep(1)  # This is to solve some timing issue
                 optimize_vertical_scale(scope)
