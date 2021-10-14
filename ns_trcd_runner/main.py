@@ -17,7 +17,7 @@ from .monochromator import Monochromator
 @click.option("--wstop", type=click.FLOAT, help="The last wavelength for data collection.")
 @click.option("--wstep", type=click.FLOAT, help="The step between wavelengths.")
 @click.option("-w", "wlist", type=click.FLOAT, multiple=True, help="A set of individual wavelengths to measure at. May be specified multiple times.")
-@click.option("-c", "--chunk-size", type=click.INT, default=10, help="The number of measurements to take at a time at each wavelength.")
+@click.option("-c", "--chunk-size", type=click.INT, default=100, help="The number of measurements to take at a time at each wavelength.")
 @click.option("--notify", "phone_num", type=click.STRING, help="The phone number to SMS when the experiment is done.")
 @click.option("--overwrite", is_flag=True, help="Overwrite the contents of the output directory.")
 @click.option("--no-monochromator", "no_mon", is_flag=True, help="Don't move the monochromator.")
