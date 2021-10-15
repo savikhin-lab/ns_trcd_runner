@@ -5,6 +5,7 @@ import notifiers
 import numpy as np
 from dataclasses import dataclass
 from typing import Dict, List
+from pyvisa.errors import VisaIOError
 
 
 @dataclass
@@ -90,7 +91,22 @@ def measure_multiwl(scope,
                 for shot in meas_chunk:
                     scope.acquisition_start()
                     scope.wait_until_triggered()
-                    digitizer_levels = transfer_signals_from_scope(scope)
+                    acquisition_failed = False
+                    try:
+                        digitizer_levels = transfer_signals_from_scope(scope)
+                    except VisaIOError:
+                        acquisition_failed = True
+                    if acquisition_failed:
+                        try:
+                            digitizer_levels = transfer_signals_from_scope(scope)
+                        except VisaIOError:
+                            click.echo(f"Acquisition failed on shot {shot} at {w}nm", err=True)
+                            if phone_num:
+                                twilio = notifiers.get_notifier("twilio")
+                                twilio.notify(message="Experiment complete", to=phone_num)
+                            if monochromator is not None:
+                                monochromator.go_home()
+                            return
                     meas = reconstruct_voltages_from_dig_levels(
                         preamble, digitizer_levels)
                     meas_dir = outdir / shot_to_str(shot) / wl_to_str(w)
