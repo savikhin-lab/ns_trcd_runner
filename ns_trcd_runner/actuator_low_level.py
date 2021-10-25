@@ -10,7 +10,7 @@ def bind(lib, fn_name, argtypes=None, restypes=None):
     return _func
 
 
-lib = cdll.LoadLibrary("Thorlabs.MotionControl.KCube.DCServo.dll")
+lib = cdll.LoadLibrary("C:\\Program Files\\Thorlabs\\Kinesis\\Thorlabs.MotionControl.KCube.DCServo.dll")
 
 # Setup and teardown
 TLI_BuildDeviceList = bind(lib, "TLI_BuildDeviceList", None, c_short)
